@@ -6,11 +6,12 @@ import os
 import json
 import datetime
 
+# Carrega configs via variáveis de ambiente
 ACCESS_TOKEN_MP = os.environ.get("ACCESS_TOKEN_MP")
 FIREBASE_CREDENTIALS = os.environ.get("FIREBASE_CREDENTIALS")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# Inicializa Firebase com credenciais do JSON via env var
+# Inicializa Firebase com JSON vindo da env var
 cred_dict = json.loads(FIREBASE_CREDENTIALS)
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {
@@ -19,27 +20,23 @@ firebase_admin.initialize_app(cred, {
 
 app = Flask(__name__)
 
-def log(msg):
-    hora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{hora}] {msg}")
-
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    log("📬 Webhook recebido!")
-    
+    print("📬 Webhook recebido!", flush=True)
+
     try:
         body = request.get_json(force=True)
-        log(f"📦 JSON recebido:\n{json.dumps(body, indent=2)}")
+        print("📦 JSON recebido:", json.dumps(body, indent=2), flush=True)
     except Exception as e:
-        log(f"❌ Erro ao processar JSON: {e}")
+        print("❌ Erro ao processar JSON:", e, flush=True)
         return "Erro no JSON", 400
 
     payment_id = body.get("data", {}).get("id")
     if not payment_id:
-        log("⚠️ ID do pagamento ausente no JSON. Ignorando.")
-        return "Sem payment_id", 200  # Evita erro 500
+        print("⚠️ ID do pagamento ausente no JSON. Ignorando.", flush=True)
+        return "Sem payment_id", 200
 
-    log(f"🔎 Consultando pagamento ID: {payment_id}")
+    print(f"🔎 Consultando pagamento ID: {payment_id}", flush=True)
 
     response = requests.get(
         f"https://api.mercadopago.com/v1/payments/{payment_id}",
@@ -47,8 +44,8 @@ def webhook():
     )
 
     if response.status_code != 200:
-        log(f"⚠️ Erro ao consultar o pagamento na API. Status: {response.status_code}")
-        log(f"📄 Resposta da API:\n{response.text}")
+        print(f"⚠️ Erro ao consultar o pagamento. Status: {response.status_code}", flush=True)
+        print("📄 Resposta:", response.text, flush=True)
         return "Ignorado: pagamento inválido", 200
 
     data = response.json()
@@ -57,24 +54,24 @@ def webhook():
     metodo = data.get("payment_method_id")
     email = data.get("payer", {}).get("email")
 
-    log(f"📄 Detalhes do pagamento:")
-    log(f"   🧾 Valor: R$ {valor}")
-    log(f"   ✅ Status: {status}")
-    log(f"   💳 Método: {metodo}")
-    log(f"   📧 Email: {email}")
+    print("📄 Detalhes do pagamento:", flush=True)
+    print(f"   🧾 Valor: R$ {valor}", flush=True)
+    print(f"   ✅ Status: {status}", flush=True)
+    print(f"   💳 Método: {metodo}", flush=True)
+    print(f"   📧 Email: {email}", flush=True)
 
     if status == "approved" and valor > 0.001:
         try:
             db.reference("/comando").set({"ligar": True})
-            log("🔥 Firebase atualizado com sucesso!")
+            print("🔥 Firebase atualizado com sucesso!", flush=True)
         except Exception as e:
-            log(f"❌ Erro ao atualizar Firebase: {e}")
+            print("❌ Erro ao atualizar Firebase:", e, flush=True)
     else:
-        log("⚠️ Pagamento não aprovado ou valor inválido.")
+        print("⚠️ Pagamento não aprovado ou valor inválido.", flush=True)
 
     return "OK", 200
 
-# Roda no Render
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print(f"✅ Servidor iniciado na porta {port}", flush=True)
     app.run(host="0.0.0.0", port=port)
