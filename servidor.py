@@ -6,12 +6,11 @@ import os
 import json
 import datetime
 
-# Configurações por variável de ambiente
 ACCESS_TOKEN_MP = os.environ.get("ACCESS_TOKEN_MP")
 FIREBASE_CREDENTIALS = os.environ.get("FIREBASE_CREDENTIALS")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# Inicialização do Firebase via env var
+# Inicializa Firebase com credenciais do JSON via env var
 cred_dict = json.loads(FIREBASE_CREDENTIALS)
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {
@@ -26,18 +25,19 @@ def log(msg):
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    log("🔔 Webhook recebido!")
+    log("📬 Webhook recebido!")
+    
     try:
         body = request.get_json(force=True)
-        print("📦 Corpo recebido:", body)
+        log(f"📦 JSON recebido:\n{json.dumps(body, indent=2)}")
     except Exception as e:
-        print("❌ Erro ao processar JSON:", e)
+        log(f"❌ Erro ao processar JSON: {e}")
         return "Erro no JSON", 400
 
     payment_id = body.get("data", {}).get("id")
     if not payment_id:
-        print("❌ ID do pagamento não encontrado.")
-        return "ID não encontrado", 400
+        log("⚠️ ID do pagamento ausente no JSON. Ignorando.")
+        return "Sem payment_id", 200  # Evita erro 500
 
     log(f"🔎 Consultando pagamento ID: {payment_id}")
 
@@ -46,12 +46,10 @@ def webhook():
         headers={"Authorization": f"Bearer {ACCESS_TOKEN_MP}"}
     )
 
-if response.status_code != 200:
-    print("⚠️ Pagamento não encontrado ou inválido")
-    print("🔴 Status:", response.status_code)
-    print("📄 Resposta:", response.text)
-    return "Ignorado: pagamento inválido", 200  # <-- Retorna 200 para evitar erro 500 no teste
-
+    if response.status_code != 200:
+        log(f"⚠️ Erro ao consultar o pagamento na API. Status: {response.status_code}")
+        log(f"📄 Resposta da API:\n{response.text}")
+        return "Ignorado: pagamento inválido", 200
 
     data = response.json()
     valor = data.get("transaction_amount")
@@ -59,24 +57,24 @@ if response.status_code != 200:
     metodo = data.get("payment_method_id")
     email = data.get("payer", {}).get("email")
 
-    print(f"📄 Dados do pagamento:")
-    print(f"   🧾 Valor: R$ {valor}")
-    print(f"   ✅ Status: {status}")
-    print(f"   💳 Método: {metodo}")
-    print(f"   📧 Email: {email}")
+    log(f"📄 Detalhes do pagamento:")
+    log(f"   🧾 Valor: R$ {valor}")
+    log(f"   ✅ Status: {status}")
+    log(f"   💳 Método: {metodo}")
+    log(f"   📧 Email: {email}")
 
     if status == "approved" and valor > 0.001:
         try:
             db.reference("/comando").set({"ligar": True})
-            print("🔥 Firebase atualizado com sucesso!")
+            log("🔥 Firebase atualizado com sucesso!")
         except Exception as e:
-            print("❌ Erro ao atualizar Firebase:", e)
+            log(f"❌ Erro ao atualizar Firebase: {e}")
     else:
-        print("⚠️ Pagamento não aprovado ou valor inválido.")
+        log("⚠️ Pagamento não aprovado ou valor inválido.")
 
     return "OK", 200
 
-# Inicia o servidor com a porta exigida pelo Render
+# Roda no Render
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
