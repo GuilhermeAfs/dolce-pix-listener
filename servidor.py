@@ -7,9 +7,11 @@ import os
 
 ACCESS_TOKEN_MP = os.environ.get("ACCESS_TOKEN_MP")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-FIREBASE_JSON_PATH = "firebase-adminsdk.json"
+import json
 
-cred = credentials.Certificate(FIREBASE_JSON_PATH)
+firebase_cred_json = os.environ.get("FIREBASE_CREDENTIALS")
+cred_dict = json.loads(firebase_cred_json)
+cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {
     'databaseURL': DATABASE_URL
 })
