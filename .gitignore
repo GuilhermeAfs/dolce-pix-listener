@@ -172,3 +172,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+firebase-adminsdk.json
+__pycache__/
+.env
